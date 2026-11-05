@@ -2,7 +2,7 @@
   "name": "com.yuya-hatano.masterdata-validator",
   "displayName": "Master Data Validator",
   "version": "0.1.0",
-  "unity": "2022.3",
+  "unity": "6000.0",
   "description": "Unity Editor tool for importing JSON master data into ScriptableObjects with automatic validation (ID duplicates, broken references, type checks, etc.).",
   "author": {
     "name": "yuya-hatano"
@@ -16,5 +16,8 @@
     "importer"
   ],
   "category": "Editor",
-  "hideInEditor": false
+  "hideInEditor": false,
+  "dependencies": {
+    "com.unity.nuget.newtonsoft-json": "3.2.1"
+  }
 }
