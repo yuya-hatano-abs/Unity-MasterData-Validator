@@ -1,0 +1,18 @@
+{
+    "name": "MasterDataTool.Editor",
+    "rootNamespace": "MasterDataTool.EditorTools",
+    "references": [
+        "MasterDataTool.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
