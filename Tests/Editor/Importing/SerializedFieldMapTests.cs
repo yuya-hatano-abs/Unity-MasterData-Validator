@@ -80,6 +80,7 @@ namespace MasterDataTool.EditorTools.Tests
             CollectionAssert.DoesNotContain(names, "excludedConst");
             CollectionAssert.DoesNotContain(names, "excludedReadonly");
             CollectionAssert.DoesNotContain(names, "k_BackingField");
+            Assert.AreEqual(1, new FieldFilterTestRecord().ExcludedReadonlyValue);
         }
 
         [Test]
@@ -115,6 +116,8 @@ namespace MasterDataTool.EditorTools.Tests
             const int excludedConst = 1;
 
             readonly int excludedReadonly = 1;
+
+            internal int ExcludedReadonlyValue => excludedReadonly;
 
             int k_BackingField;
 
