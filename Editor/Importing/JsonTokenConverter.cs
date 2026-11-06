@@ -180,6 +180,86 @@ namespace MasterDataTool.EditorTools.Importing
             return true;
         }
 
+        /// <summary>
+        /// スキーマ推論用に、JSON 整数トークンから long 値を読み取ります。
+        /// </summary>
+        internal static bool TryReadIntegerTokenValue(JToken token, out long longValue)
+        {
+            longValue = 0;
+
+            if (token == null || token.Type != JTokenType.Integer)
+            {
+                return false;
+            }
+
+            var jValue = (JValue)token;
+            var raw = jValue.Value;
+            if (raw is long longRaw)
+            {
+                longValue = longRaw;
+                return true;
+            }
+
+            if (raw is int intRaw)
+            {
+                longValue = intRaw;
+                return true;
+            }
+
+            if (raw is short shortRaw)
+            {
+                longValue = shortRaw;
+                return true;
+            }
+
+            if (raw is byte byteRaw)
+            {
+                longValue = byteRaw;
+                return true;
+            }
+
+            if (raw is ulong ulongRaw)
+            {
+                if (ulongRaw > (ulong)long.MaxValue)
+                {
+                    return false;
+                }
+
+                longValue = (long)ulongRaw;
+                return true;
+            }
+
+            var text = Convert.ToString(raw, CultureInfo.InvariantCulture);
+            if (string.IsNullOrEmpty(text) ||
+                !long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out longValue))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// スキーマ推論用に、JSON 数値トークンから double 値を読み取ります。
+        /// </summary>
+        internal static bool TryReadNumericTokenValue(JToken token, out double number)
+        {
+            number = 0d;
+
+            if (token == null)
+            {
+                return false;
+            }
+
+            if (token.Type == JTokenType.Integer || token.Type == JTokenType.Float)
+            {
+                number = token.Value<double>();
+                return true;
+            }
+
+            return false;
+        }
+
         static bool TryParseIntegerToken(
             JToken token,
             string fieldName,
