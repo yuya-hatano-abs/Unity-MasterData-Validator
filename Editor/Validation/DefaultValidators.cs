@@ -8,7 +8,7 @@ namespace MasterDataTool.EditorTools.Validation
     public static class DefaultValidators
     {
         /// <summary>
-        /// 標準の検証器リストを返します。
+        /// 標準の検証器リストを返します。DuplicateId、BrokenReference、RequiredField の順です。
         /// </summary>
         /// <returns>検証器のリストです。呼ぶたびに新しいリストと新しい検証器インスタンスを返します。</returns>
         public static IReadOnlyList<IValidator> Create()
@@ -17,6 +17,7 @@ namespace MasterDataTool.EditorTools.Validation
             {
                 new DuplicateIdValidator(),
                 new BrokenReferenceValidator(),
+                new RequiredFieldValidator(),
             };
         }
     }

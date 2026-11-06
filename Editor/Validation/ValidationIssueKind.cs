@@ -40,5 +40,8 @@ namespace MasterDataTool.EditorTools.Validation
 
         /// <summary>[MasterRef] の指定が不正です(設定のミス)。</summary>
         InvalidReferenceDefinition,
+
+        /// <summary>[MasterRequired] の指定が不正です(設定のミス)。</summary>
+        InvalidRequiredDefinition,
     }
 }

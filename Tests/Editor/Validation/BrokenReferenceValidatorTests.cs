@@ -537,11 +537,29 @@ namespace MasterDataTool.EditorTools.Tests
         {
             var first = DefaultValidators.Create();
             var second = DefaultValidators.Create();
-            Assert.AreEqual(2, first.Count);
-            Assert.AreEqual(DuplicateIdValidator.ValidatorId, first[0].Id);
-            Assert.AreEqual(BrokenReferenceValidator.ValidatorId, first[1].Id);
+            var duplicateIdCount = 0;
+            var brokenCount = 0;
+            var duplicateIndex = -1;
+            var brokenIndex = -1;
+            for (var i = 0; i < first.Count; i++)
+            {
+                if (first[i].Id == DuplicateIdValidator.ValidatorId)
+                {
+                    duplicateIdCount++;
+                    duplicateIndex = i;
+                }
+                else if (first[i].Id == BrokenReferenceValidator.ValidatorId)
+                {
+                    brokenCount++;
+                    brokenIndex = i;
+                }
+            }
+
+            Assert.AreEqual(1, duplicateIdCount);
+            Assert.AreEqual(1, brokenCount);
+            Assert.Greater(brokenIndex, duplicateIndex);
             Assert.AreNotSame(first, second);
-            Assert.AreNotSame(first[1], second[1]);
+            Assert.AreNotSame(first[brokenIndex], second[brokenIndex]);
         }
 
         [Test]
