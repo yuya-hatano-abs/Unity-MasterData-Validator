@@ -34,5 +34,11 @@ namespace MasterDataTool.EditorTools.Validation
 
         /// <summary>検証器の実行に失敗しました。</summary>
         ValidatorFailure,
+
+        /// <summary>参照先のマスタが、検証の文脈(Tables)に含まれていません。</summary>
+        ReferenceTargetUnavailable,
+
+        /// <summary>[MasterRef] の指定が不正です(設定のミス)。</summary>
+        InvalidReferenceDefinition,
     }
 }

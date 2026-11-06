@@ -16,6 +16,7 @@ namespace MasterDataTool.EditorTools.Validation
             return new List<IValidator>
             {
                 new DuplicateIdValidator(),
+                new BrokenReferenceValidator(),
             };
         }
     }

@@ -373,7 +373,16 @@ namespace MasterDataTool.EditorTools.Tests
         public void DefaultValidators_Create_ContainsDuplicateIdValidator()
         {
             var validators = DefaultValidators.Create();
-            Assert.AreEqual(1, validators.Count);
+            var duplicateIdCount = 0;
+            for (var i = 0; i < validators.Count; i++)
+            {
+                if (validators[i].Id == DuplicateIdValidator.ValidatorId)
+                {
+                    duplicateIdCount++;
+                }
+            }
+
+            Assert.AreEqual(1, duplicateIdCount);
             Assert.AreEqual(DuplicateIdValidator.ValidatorId, validators[0].Id);
             Assert.IsInstanceOf<DuplicateIdValidator>(validators[0]);
         }
