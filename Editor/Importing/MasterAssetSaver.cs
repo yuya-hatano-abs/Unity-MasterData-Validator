@@ -289,95 +289,10 @@ namespace MasterDataTool.EditorTools.Importing
 
         static bool ValidateAssetPath(string assetPath, List<SaveIssue> issues)
         {
-            if (string.IsNullOrEmpty(assetPath))
+            if (!AssetPathValidator.TryValidate(assetPath, out var reason))
             {
-                issues.Add(new SaveIssue(SaveIssueKind.InvalidAssetPath, "アセットパスが空です。"));
+                issues.Add(new SaveIssue(SaveIssueKind.InvalidAssetPath, reason));
                 return false;
-            }
-
-            if (Path.IsPathRooted(assetPath))
-            {
-                issues.Add(new SaveIssue(
-                    SaveIssueKind.InvalidAssetPath,
-                    "アセットパスは Assets/ で始まるプロジェクト相対パスである必要があります。"));
-                return false;
-            }
-
-            if (!assetPath.StartsWith("Assets/", StringComparison.Ordinal))
-            {
-                issues.Add(new SaveIssue(
-                    SaveIssueKind.InvalidAssetPath,
-                    "アセットパスは Assets/ で始まる必要があります。"));
-                return false;
-            }
-
-            if (assetPath.Contains("\\"))
-            {
-                issues.Add(new SaveIssue(SaveIssueKind.InvalidAssetPath, "アセットパスにバックスラッシュを含めることはできません。"));
-                return false;
-            }
-
-            if (assetPath.EndsWith("/", StringComparison.Ordinal))
-            {
-                issues.Add(new SaveIssue(SaveIssueKind.InvalidAssetPath, "アセットパスをスラッシュで終えることはできません。"));
-                return false;
-            }
-
-            if (assetPath.IndexOf("//", StringComparison.Ordinal) >= 0)
-            {
-                issues.Add(new SaveIssue(SaveIssueKind.InvalidAssetPath, "アセットパスに連続したスラッシュを含めることはできません。"));
-                return false;
-            }
-
-            if (!assetPath.EndsWith(".asset", StringComparison.Ordinal))
-            {
-                issues.Add(new SaveIssue(SaveIssueKind.InvalidAssetPath, "アセットパスは .asset で終わる必要があります。"));
-                return false;
-            }
-
-            var fileName = Path.GetFileName(assetPath);
-            if (string.IsNullOrEmpty(fileName) ||
-                string.Equals(fileName, ".asset", StringComparison.Ordinal))
-            {
-                issues.Add(new SaveIssue(SaveIssueKind.InvalidAssetPath, "アセットのファイル名が空です。"));
-                return false;
-            }
-
-            var segments = assetPath.Split('/');
-            for (var i = 0; i < segments.Length; i++)
-            {
-                if (string.IsNullOrEmpty(segments[i]))
-                {
-                    issues.Add(new SaveIssue(SaveIssueKind.InvalidAssetPath, "アセットパスに空のセグメントが含まれています。"));
-                    return false;
-                }
-
-                if (string.Equals(segments[i], "..", StringComparison.Ordinal))
-                {
-                    issues.Add(new SaveIssue(SaveIssueKind.InvalidAssetPath, "アセットパスに .. を含めることはできません。"));
-                    return false;
-                }
-            }
-
-            var invalidChars = Path.GetInvalidFileNameChars();
-            for (var i = 0; i < assetPath.Length; i++)
-            {
-                var c = assetPath[i];
-                if (c == '/')
-                {
-                    continue;
-                }
-
-                for (var j = 0; j < invalidChars.Length; j++)
-                {
-                    if (c == invalidChars[j])
-                    {
-                        issues.Add(new SaveIssue(
-                            SaveIssueKind.InvalidAssetPath,
-                            "アセットパスに使用できない文字が含まれています。"));
-                        return false;
-                    }
-                }
             }
 
             return true;
