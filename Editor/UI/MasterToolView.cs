@@ -52,6 +52,15 @@ namespace MasterDataTool.EditorTools.UI
         /// <summary>検証問題の一覧パネルの名前です。</summary>
         internal const string ResultsListPanelName = "results-list-panel";
 
+        /// <summary>差分の折りたたみの名前です。</summary>
+        internal const string DiffFoldoutName = "diff-foldout";
+
+        /// <summary>差分の詳細スクロールの名前です。</summary>
+        internal const string DiffScrollName = "diff-scroll";
+
+        /// <summary>差分の詳細に付ける高さの上限です。</summary>
+        internal const int DiffScrollMaxHeight = 160;
+
         const string ResultHeading = "検証結果";
         const string ResultPlaceholder = "検証結果は、ここに表示されます。";
         const string TooltipNeedInput = "入力の問題を解消してください。";
@@ -407,7 +416,7 @@ namespace MasterDataTool.EditorTools.UI
 
             if (exceptionLines != null)
             {
-                ShowExecutedResult(exceptionLines, null, false);
+                ShowExecutedResult(exceptionLines, null, false, null);
                 return;
             }
 
@@ -419,7 +428,7 @@ namespace MasterDataTool.EditorTools.UI
                 issues = result.Validation.Issues;
             }
 
-            ShowExecutedResult(PipelineResultFormatter.FormatHeader(result), issues, showList);
+            ShowExecutedResult(PipelineResultFormatter.FormatHeader(result), issues, showList, result);
         }
 
         void ApplyExecutionButtons()
@@ -465,7 +474,8 @@ namespace MasterDataTool.EditorTools.UI
         void ShowExecutedResult(
             IReadOnlyList<ResultLine> lines,
             IReadOnlyList<ValidationIssue> issues,
-            bool showList)
+            bool showList,
+            PipelineResult result)
         {
             if (resultsContainer == null)
             {
@@ -484,6 +494,7 @@ namespace MasterDataTool.EditorTools.UI
             }
 
             resultsContainer.Add(header);
+            AppendDiff(result);
             if (!showList)
             {
                 resultsView.Clear();
@@ -492,6 +503,29 @@ namespace MasterDataTool.EditorTools.UI
 
             resultsContainer.Add(resultsView.Build());
             resultsView.SetIssues(issues);
+        }
+
+        void AppendDiff(PipelineResult result)
+        {
+            if (result == null || result.Diff == null)
+            {
+                return;
+            }
+
+            var foldout = new Foldout { name = DiffFoldoutName, value = false };
+            foldout.text = MasterDiffFormatter.FormatSummary(result.Diff);
+            var scroll = new ScrollView { name = DiffScrollName };
+            scroll.style.maxHeight = DiffScrollMaxHeight;
+            var details = MasterDiffFormatter.FormatDetails(result.Diff);
+            for (var i = 0; i < details.Count; i++)
+            {
+                var line = new Label(details[i]);
+                line.style.whiteSpace = WhiteSpace.Normal;
+                scroll.Add(line);
+            }
+
+            foldout.Add(scroll);
+            resultsContainer.Add(foldout);
         }
 
         string ResolveInitialJsonDirectory()

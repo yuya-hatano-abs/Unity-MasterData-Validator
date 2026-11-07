@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using MasterDataTool.EditorTools.Diff;
 using MasterDataTool.EditorTools.Importing;
 using MasterDataTool.EditorTools.Pipeline;
 using MasterDataTool.EditorTools.Validation;
@@ -445,7 +446,7 @@ namespace MasterDataTool.EditorTools.Tests
         }
 
         [Test]
-        public void Execute_SameContent_ConfirmTrue_Unchanged()
+        public void Execute_SameContent_NoConfirm_Unchanged()
         {
             Write(ItemJson);
             pipeline.Execute(ItemRequest(PipelineMode.ValidateAndSave), ProjectTables.Empty);
@@ -455,9 +456,10 @@ namespace MasterDataTool.EditorTools.Tests
 
             Assert.AreEqual(PipelineStatus.Saved, again.Status);
             Assert.AreEqual(SaveOutcome.Unchanged, again.Save.Outcome);
-            Assert.AreEqual(1, confirm.Calls);
-            Assert.AreEqual(2, confirm.Previous);
-            Assert.AreEqual(2, confirm.Next);
+            Assert.AreEqual(0, confirm.Calls);
+            Assert.IsNotNull(again.Diff);
+            Assert.IsTrue(again.Diff.SerializedRecordsEqual);
+            Assert.AreEqual(MasterDiffStatus.Available, again.Diff.Status);
         }
 
         [Test]
@@ -478,6 +480,7 @@ namespace MasterDataTool.EditorTools.Tests
             Assert.AreEqual(PipelineStatus.SaveFailed, failed.Status);
             Assert.AreEqual(SaveOutcome.Failed, failed.Save.Outcome);
             Assert.AreEqual(SaveIssueKind.AssetTypeMismatch, failed.Save.Issues[0].Kind);
+            Assert.IsNull(failed.Diff);
             Assert.AreEqual(0, confirm.Calls);
             Assert.IsTrue(failed.CanSave);
             Assert.AreEqual("Quest_A", AssetDatabase.LoadAssetAtPath<TestQuestMaster>(path).Records[0].Id);
@@ -512,6 +515,128 @@ namespace MasterDataTool.EditorTools.Tests
             Assert.IsNull(validated.Save);
             Assert.AreEqual(0, confirm.Calls);
             Assert.AreEqual(2, AssetDatabase.LoadAssetAtPath<TestItemMaster>(path).Count);
+        }
+
+        [Test]
+        public void Execute_Validate_ExistingAsset_HasDiffWithoutSaveOrConfirm()
+        {
+            Write(ItemJsonOne);
+            pipeline.Execute(ItemRequest(PipelineMode.ValidateAndSave), ProjectTables.Empty);
+            Assert.AreEqual(0, confirm.Calls);
+
+            Write(ItemJson);
+            var result = pipeline.Execute(ItemRequest(PipelineMode.Validate), ProjectTables.Empty);
+
+            Assert.AreEqual(PipelineStatus.Validated, result.Status);
+            Assert.IsNull(result.Save);
+            Assert.AreEqual(0, confirm.Calls);
+            Assert.IsNotNull(result.Diff);
+            Assert.AreEqual(MasterDiffStatus.Available, result.Diff.Status);
+            CollectionAssert.Contains(result.Diff.AddedKeys, "2");
+        }
+
+        [Test]
+        public void Execute_Validate_NoExistingAsset_DiffIsNull()
+        {
+            Write(ItemJsonOne);
+            var result = pipeline.Execute(ItemRequest(PipelineMode.Validate), ProjectTables.Empty);
+
+            Assert.AreEqual(PipelineStatus.Validated, result.Status);
+            Assert.IsNull(result.Diff);
+            Assert.IsNull(result.Save);
+            Assert.AreEqual(0, confirm.Calls);
+        }
+
+        [Test]
+        public void Execute_ValidationFailed_ExistingAsset_IncludesDiff()
+        {
+            Write(ItemJsonOne);
+            pipeline.Execute(ItemRequest(PipelineMode.ValidateAndSave), ProjectTables.Empty);
+
+            Write("{ \"records\": [ { \"id\": \"x\", \"name\": \"Potion\" } ] }");
+            var result = pipeline.Execute(ItemRequest(PipelineMode.Validate), ProjectTables.Empty);
+
+            Assert.AreEqual(PipelineStatus.ValidationFailed, result.Status);
+            Assert.IsNull(result.Save);
+            Assert.AreEqual(0, confirm.Calls);
+            Assert.IsNotNull(result.Diff);
+            Assert.AreEqual(MasterDiffStatus.Available, result.Diff.Status);
+        }
+
+        [Test]
+        public void Execute_DuplicateId_ExistingAsset_DiffUnavailable()
+        {
+            Write(ItemJsonOne);
+            pipeline.Execute(ItemRequest(PipelineMode.ValidateAndSave), ProjectTables.Empty);
+
+            Write("{ \"records\": [ { \"id\": 1, \"name\": \"A\" }, { \"id\": 1, \"name\": \"B\" } ] }");
+            var result = pipeline.Execute(ItemRequest(PipelineMode.Validate), ProjectTables.Empty);
+
+            Assert.AreEqual(PipelineStatus.ValidationFailed, result.Status);
+            Assert.IsNull(result.Save);
+            Assert.AreEqual(0, confirm.Calls);
+            Assert.IsNotNull(result.Diff);
+            Assert.AreEqual(MasterDiffStatus.Unavailable, result.Diff.Status);
+            StringAssert.Contains("重複キー 1", result.Diff.Reason);
+            StringAssert.Contains("新規", result.Diff.Reason);
+            Assert.AreEqual(0, result.Diff.AddedKeys.Count);
+            Assert.AreEqual(0, result.Diff.Changes.Count);
+        }
+
+        [Test]
+        public void Execute_LoadExistingThrows_KeepsValidatedStatus()
+        {
+            Write(ItemJsonOne);
+            var throwing = new MasterImportPipeline(
+                confirm,
+                _ => throw new InvalidOperationException("load failed"));
+            var result = throwing.Execute(ItemRequest(PipelineMode.Validate), ProjectTables.Empty);
+
+            Assert.AreEqual(PipelineStatus.Validated, result.Status);
+            Assert.IsTrue(result.CanSave);
+            Assert.IsNull(result.Save);
+            Assert.AreEqual(0, confirm.Calls);
+            Assert.IsNotNull(result.Diff);
+            Assert.AreEqual(MasterDiffStatus.Unavailable, result.Diff.Status);
+            StringAssert.Contains("差分を計算できませんでした", result.Diff.Reason);
+        }
+
+        [Test]
+        public void Execute_Update_ConfirmReceivesNonEmptySummary()
+        {
+            Write(ItemJsonOne);
+            pipeline.Execute(ItemRequest(PipelineMode.ValidateAndSave), ProjectTables.Empty);
+
+            Write(ItemJson);
+            confirm.Result = true;
+            var updated = pipeline.Execute(ItemRequest(PipelineMode.ValidateAndSave), ProjectTables.Empty);
+
+            Assert.AreEqual(PipelineStatus.Saved, updated.Status);
+            Assert.AreEqual(SaveOutcome.Updated, updated.Save.Outcome);
+            Assert.AreEqual(1, confirm.Calls);
+            Assert.IsFalse(string.IsNullOrEmpty(confirm.Summary));
+        }
+
+        [Test]
+        public void Execute_ReorderOnly_ConfirmsAndUpdates()
+        {
+            Write("{ \"records\": [ { \"id\": 1, \"name\": \"A\" }, { \"id\": 2, \"name\": \"B\" } ] }");
+            pipeline.Execute(ItemRequest(PipelineMode.ValidateAndSave), ProjectTables.Empty);
+
+            Write("{ \"records\": [ { \"id\": 2, \"name\": \"B\" }, { \"id\": 1, \"name\": \"A\" } ] }");
+            confirm.Result = true;
+            var updated = pipeline.Execute(ItemRequest(PipelineMode.ValidateAndSave), ProjectTables.Empty);
+
+            Assert.AreEqual(PipelineStatus.Saved, updated.Status);
+            Assert.AreEqual(SaveOutcome.Updated, updated.Save.Outcome);
+            Assert.AreEqual(1, confirm.Calls);
+            StringAssert.Contains("並び順", confirm.Summary);
+            Assert.IsNotNull(updated.Diff);
+            Assert.IsTrue(updated.Diff.OrderChanged);
+            Assert.AreEqual(0, updated.Diff.AddedKeys.Count);
+            Assert.AreEqual(0, updated.Diff.RemovedKeys.Count);
+            Assert.AreEqual(0, updated.Diff.Changes.Count);
+            Assert.IsFalse(updated.Diff.SerializedRecordsEqual);
         }
 
         [Test]
@@ -766,14 +891,16 @@ namespace MasterDataTool.EditorTools.Tests
             public string Path;
             public int Previous;
             public int Next;
+            public string Summary;
             public Exception Throw;
 
-            public bool Confirm(string assetPath, int previousRecordCount, int newRecordCount)
+            public bool Confirm(string assetPath, int previousRecordCount, int newRecordCount, string diffSummary)
             {
                 Calls++;
                 Path = assetPath;
                 Previous = previousRecordCount;
                 Next = newRecordCount;
+                Summary = diffSummary;
                 if (Throw != null)
                 {
                     throw Throw;

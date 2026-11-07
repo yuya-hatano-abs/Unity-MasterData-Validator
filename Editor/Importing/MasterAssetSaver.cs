@@ -167,24 +167,15 @@ namespace MasterDataTool.EditorTools.Importing
             }
 
             var previousRecordCount = existing.Count;
-            var comparisonInstance = ScriptableObject.CreateInstance<TMaster>();
-            try
+            if (SerializedRecordsEqual<TMaster, TRecord>(existing, importResult.Records))
             {
-                comparisonInstance.ReplaceRecords(importResult.Records);
-                if (RecordsSerializedEquals<TMaster, TRecord>(existing, comparisonInstance))
-                {
-                    return new MasterAssetSaveResult<TMaster>(
-                        SaveOutcome.Unchanged,
-                        existing,
-                        assetPath,
-                        previousRecordCount,
-                        newRecordCount,
-                        issues);
-                }
-            }
-            finally
-            {
-                UnityEngine.Object.DestroyImmediate(comparisonInstance);
+                return new MasterAssetSaveResult<TMaster>(
+                    SaveOutcome.Unchanged,
+                    existing,
+                    assetPath,
+                    previousRecordCount,
+                    newRecordCount,
+                    issues);
             }
 
             try
@@ -209,6 +200,41 @@ namespace MasterDataTool.EditorTools.Importing
                 previousRecordCount,
                 newRecordCount,
                 issues);
+        }
+
+        /// <summary>
+        /// 既存アセットの records と、新しいレコード列がシリアライズとして同一かを比較します。
+        /// 同一のときは呼び出し元が書き込む前に戻れます。
+        /// </summary>
+        /// <param name="existing">既存アセットです。</param>
+        /// <param name="newRecords">新しいレコードです。</param>
+        /// <returns>records が同一なら true です。</returns>
+        internal static bool SerializedRecordsEqual<TMaster, TRecord>(
+            TMaster existing,
+            IEnumerable<TRecord> newRecords)
+            where TMaster : MasterDataBase<TRecord>
+            where TRecord : MasterRecordBase
+        {
+            if (existing == null)
+            {
+                throw new ArgumentNullException(nameof(existing));
+            }
+
+            if (newRecords == null)
+            {
+                throw new ArgumentNullException(nameof(newRecords));
+            }
+
+            var comparisonInstance = ScriptableObject.CreateInstance<TMaster>();
+            try
+            {
+                comparisonInstance.ReplaceRecords(newRecords);
+                return RecordsSerializedEquals<TMaster, TRecord>(existing, comparisonInstance);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(comparisonInstance);
+            }
         }
 
         /// <summary>

@@ -312,7 +312,7 @@ namespace MasterDataTool.EditorTools.Tests
             public bool Result = true;
             public Exception Throw;
 
-            public bool Confirm(string assetPath, int previousRecordCount, int newRecordCount)
+            public bool Confirm(string assetPath, int previousRecordCount, int newRecordCount, string diffSummary)
             {
                 if (Throw != null)
                 {

@@ -1,3 +1,4 @@
+using MasterDataTool.EditorTools.Diff;
 using MasterDataTool.EditorTools.Validation;
 
 namespace MasterDataTool.EditorTools.Pipeline
@@ -16,13 +17,15 @@ namespace MasterDataTool.EditorTools.Pipeline
         /// <param name="canSave">インポートが成功し、検証エラーがない場合に true です。</param>
         /// <param name="save">保存を試みた結果です。試していない場合は null です。</param>
         /// <param name="message">依頼不正または想定外の例外の説明です。</param>
+        /// <param name="diff">既存アセットとの差分です。無い場合は null です。</param>
         public PipelineResult(
             PipelineStatus status,
             ValidationResult validation,
             MasterTable table,
             bool canSave,
             PipelineSaveInfo save,
-            string message)
+            string message,
+            MasterDiffReport diff = null)
         {
             Status = status;
             Validation = validation ?? ValidationResult.Empty;
@@ -30,6 +33,7 @@ namespace MasterDataTool.EditorTools.Pipeline
             CanSave = canSave;
             Save = save;
             Message = message ?? string.Empty;
+            Diff = diff;
         }
 
         /// <summary>終了状態です。</summary>
@@ -49,5 +53,8 @@ namespace MasterDataTool.EditorTools.Pipeline
 
         /// <summary>依頼不正または想定外の例外の説明です。それ以外は空文字です。</summary>
         public string Message { get; }
+
+        /// <summary>既存アセットとの差分です。無い場合は null です。</summary>
+        public MasterDiffReport Diff { get; }
     }
 }

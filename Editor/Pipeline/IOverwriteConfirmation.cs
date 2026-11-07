@@ -13,8 +13,9 @@ namespace MasterDataTool.EditorTools.Pipeline
         /// <param name="assetPath">保存先のパスです。</param>
         /// <param name="previousRecordCount">既存のレコード件数です。</param>
         /// <param name="newRecordCount">今回のレコード件数です。</param>
+        /// <param name="diffSummary">差分の要約です。無い場合は空です。</param>
         /// <returns>上書きする場合は true です。</returns>
-        bool Confirm(string assetPath, int previousRecordCount, int newRecordCount);
+        bool Confirm(string assetPath, int previousRecordCount, int newRecordCount, string diffSummary);
     }
 
     /// <summary>
@@ -23,12 +24,17 @@ namespace MasterDataTool.EditorTools.Pipeline
     internal sealed class EditorOverwriteConfirmation : IOverwriteConfirmation
     {
         /// <inheritdoc />
-        public bool Confirm(string assetPath, int previousRecordCount, int newRecordCount)
+        public bool Confirm(string assetPath, int previousRecordCount, int newRecordCount, string diffSummary)
         {
             var message = "既存のアセットを更新します。\n" +
                           assetPath +
-                          "\nレコード数: " + previousRecordCount + " → " + newRecordCount +
-                          "\n\nよろしいですか?";
+                          "\nレコード数: " + previousRecordCount + " → " + newRecordCount;
+            if (!string.IsNullOrEmpty(diffSummary))
+            {
+                message += "\n" + diffSummary;
+            }
+
+            message += "\n\nよろしいですか?";
             return EditorUtility.DisplayDialog("既存のアセットを更新", message, "更新する", "キャンセル");
         }
     }

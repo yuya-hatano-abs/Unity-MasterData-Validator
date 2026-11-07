@@ -167,7 +167,7 @@ namespace MasterDataTool.EditorTools.Tests
         {
             public int Calls;
 
-            public bool Confirm(string assetPath, int previousRecordCount, int newRecordCount)
+            public bool Confirm(string assetPath, int previousRecordCount, int newRecordCount, string diffSummary)
             {
                 Calls++;
                 return true;

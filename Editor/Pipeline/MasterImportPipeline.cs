@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
+using MasterDataTool.EditorTools.Diff;
 using MasterDataTool.EditorTools.Generation;
 using MasterDataTool.EditorTools.Importing;
 using MasterDataTool.EditorTools.Logging;
+using MasterDataTool.EditorTools.UI;
 using MasterDataTool.EditorTools.Validation;
 using MasterDataTool.Runtime;
 using UnityEditor;
@@ -143,6 +145,9 @@ namespace MasterDataTool.EditorTools.Pipeline
                 var context = new ValidationContext(tables, new[] { table });
                 var runnerResult = new ValidationRunner(DefaultValidators.Create()).Run(context);
                 var validation = Combine(converted, projectTables.Warnings, extraWarnings, runnerResult);
+                MasterDataBase existing;
+                MasterDiffReport diff;
+                TryBuildDiff<TMaster, TRecord>(request, import, table, loadExistingAsset, out existing, out diff);
                 if (!validation.IsValid)
                 {
                     return new PipelineResult(
@@ -151,7 +156,8 @@ namespace MasterDataTool.EditorTools.Pipeline
                         table,
                         false,
                         null,
-                        string.Empty);
+                        string.Empty,
+                        diff);
                 }
 
                 if (request.Mode == PipelineMode.Validate)
@@ -162,7 +168,8 @@ namespace MasterDataTool.EditorTools.Pipeline
                         table,
                         true,
                         null,
-                        string.Empty);
+                        string.Empty,
+                        diff);
                 }
 
                 return Save<TMaster, TRecord>(
@@ -171,7 +178,8 @@ namespace MasterDataTool.EditorTools.Pipeline
                     table,
                     validation,
                     confirmation,
-                    loadExistingAsset);
+                    existing,
+                    diff);
             }
             catch (Exception ex)
             {
@@ -185,27 +193,34 @@ namespace MasterDataTool.EditorTools.Pipeline
             MasterTable table,
             ValidationResult validation,
             IOverwriteConfirmation confirmation,
-            Func<string, MasterDataBase> loadExistingAsset)
+            MasterDataBase existing,
+            MasterDiffReport diff)
             where TMaster : MasterDataBase<TRecord>
             where TRecord : MasterRecordBase
         {
             var options = new MasterAssetSaveOptions();
-            var existing = loadExistingAsset(request.AssetPath);
             if (existing != null && request.MasterType.IsInstanceOfType(existing))
             {
-                var approved = confirmation.Confirm(
-                    request.AssetPath,
-                    existing.Count,
-                    table.Records.Count);
-                if (!approved)
+                var sameRecords = diff != null && diff.SerializedRecordsEqual;
+                if (!sameRecords)
                 {
-                    return new PipelineResult(
-                        PipelineStatus.SaveCancelled,
-                        validation,
-                        table,
-                        true,
-                        null,
-                        string.Empty);
+                    var summary = diff == null ? string.Empty : MasterDiffFormatter.FormatSummary(diff);
+                    var approved = confirmation.Confirm(
+                        request.AssetPath,
+                        existing.Count,
+                        table.Records.Count,
+                        summary);
+                    if (!approved)
+                    {
+                        return new PipelineResult(
+                            PipelineStatus.SaveCancelled,
+                            validation,
+                            table,
+                            true,
+                            null,
+                            string.Empty,
+                            diff);
+                    }
                 }
 
                 options.ExistingAsset = OverwritePolicy.Overwrite;
@@ -221,7 +236,56 @@ namespace MasterDataTool.EditorTools.Pipeline
             var status = saved.Outcome == SaveOutcome.Failed
                 ? PipelineStatus.SaveFailed
                 : PipelineStatus.Saved;
-            return new PipelineResult(status, validation, table, true, info, string.Empty);
+            return new PipelineResult(status, validation, table, true, info, string.Empty, diff);
+        }
+
+        static void TryBuildDiff<TMaster, TRecord>(
+            PipelineRequest request,
+            ImportResult<TRecord> import,
+            MasterTable table,
+            Func<string, MasterDataBase> loadExistingAsset,
+            out MasterDataBase existing,
+            out MasterDiffReport diff)
+            where TMaster : MasterDataBase<TRecord>
+            where TRecord : MasterRecordBase
+        {
+            existing = null;
+            diff = null;
+            var serializedRecordsEqual = false;
+            try
+            {
+                existing = loadExistingAsset(request.AssetPath);
+                if (existing == null || !request.MasterType.IsInstanceOfType(existing))
+                {
+                    return;
+                }
+
+                serializedRecordsEqual = MasterAssetSaver.SerializedRecordsEqual<TMaster, TRecord>(
+                    (TMaster)existing,
+                    import.Records);
+            }
+            catch (Exception)
+            {
+                // 読み込みの失敗で、検証や保存の成否は変えない。
+                diff = MasterDiffReport.Unavailable(MasterDiffReport.CalculationFailedReason, false);
+                return;
+            }
+
+            try
+            {
+                diff = MasterDiffCalculator.Calculate(
+                    existing.AllRecords,
+                    table.Records,
+                    typeof(TRecord),
+                    serializedRecordsEqual);
+            }
+            catch (Exception)
+            {
+                // 差分計算の失敗で、検証や保存の成否は変えない。
+                diff = MasterDiffReport.Unavailable(
+                    MasterDiffReport.CalculationFailedReason,
+                    serializedRecordsEqual);
+            }
         }
 
         static List<MasterTable> BuildReferenceTables(
