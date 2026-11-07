@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Reflection;
 using MasterDataTool.EditorTools.Generation;
 using MasterDataTool.EditorTools.Importing;
+using MasterDataTool.EditorTools.Logging;
 using MasterDataTool.EditorTools.Validation;
 using MasterDataTool.Runtime;
 using UnityEditor;
@@ -16,18 +18,22 @@ namespace MasterDataTool.EditorTools.Pipeline
     {
         readonly IOverwriteConfirmation confirmation;
         readonly Func<string, MasterDataBase> loadExistingAsset;
+        readonly IMasterLogger logger;
 
         /// <summary>
         /// パイプラインを初期化します。
         /// </summary>
         /// <param name="confirmation">上書き確認です。null の場合はエディタのダイアログです。</param>
         /// <param name="loadExistingAsset">保存先の既存アセットを読み込みます。null の場合は AssetDatabase です。</param>
+        /// <param name="logger">実行ログです。null の場合は何も出しません。</param>
         public MasterImportPipeline(
             IOverwriteConfirmation confirmation = null,
-            Func<string, MasterDataBase> loadExistingAsset = null)
+            Func<string, MasterDataBase> loadExistingAsset = null,
+            IMasterLogger logger = null)
         {
             this.confirmation = confirmation ?? new EditorOverwriteConfirmation();
             this.loadExistingAsset = loadExistingAsset ?? DefaultLoadExistingAsset;
+            this.logger = logger ?? NullMasterLogger.Instance;
         }
 
         /// <summary>
@@ -38,11 +44,22 @@ namespace MasterDataTool.EditorTools.Pipeline
         /// <returns>実行結果です。</returns>
         public PipelineResult Execute(PipelineRequest request, ProjectTables projectTables)
         {
+            var watch = Stopwatch.StartNew();
             if (request == null)
             {
+                // ログ用の結果は呼び出し元へ返さない。例外の種類は変えない。
+                WriteEnd(Invalid("依頼がありません。"), Elapsed(watch));
                 throw new ArgumentNullException(nameof(request));
             }
 
+            WriteStart(request);
+            var result = ExecuteWithRequest(request, projectTables);
+            WriteEnd(result, Elapsed(watch));
+            return result;
+        }
+
+        PipelineResult ExecuteWithRequest(PipelineRequest request, ProjectTables projectTables)
+        {
             if (projectTables == null)
             {
                 projectTables = ProjectTables.Empty;
@@ -424,6 +441,38 @@ namespace MasterDataTool.EditorTools.Pipeline
             }
 
             return AssetDatabase.LoadAssetAtPath<MasterDataBase>(assetPath);
+        }
+
+        void WriteStart(PipelineRequest request)
+        {
+            try
+            {
+                logger.Log(MasterLogLevel.Info, MasterRunLogFormatter.FormatStart(request));
+            }
+            catch (Exception)
+            {
+                // ログの失敗で実行結果を変えない。
+            }
+        }
+
+        void WriteEnd(PipelineResult result, long elapsedMilliseconds)
+        {
+            try
+            {
+                logger.Log(
+                    MasterRunLogFormatter.GetEndLevel(result),
+                    MasterRunLogFormatter.FormatEnd(result, elapsedMilliseconds));
+            }
+            catch (Exception)
+            {
+                // ログの失敗で実行結果を変えない。
+            }
+        }
+
+        static long Elapsed(Stopwatch watch)
+        {
+            var elapsed = watch.ElapsedMilliseconds;
+            return elapsed < 0 ? 0 : elapsed;
         }
 
         static PipelineResult Invalid(string message)

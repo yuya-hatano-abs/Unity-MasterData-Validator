@@ -1,3 +1,5 @@
+using MasterDataTool.EditorTools.Logging;
+using MasterDataTool.EditorTools.Pipeline;
 using UnityEditor;
 using UnityEngine;
 
@@ -34,7 +36,9 @@ namespace MasterDataTool.EditorTools.UI
 
             var catalog = new MasterTypeCatalog();
             var model = new MasterToolModel(state, catalog);
-            var view = new MasterToolView(model);
+            var runner = new ProjectImportRunner(
+                pipeline: new MasterImportPipeline(logger: new ConsoleMasterLogger()));
+            var view = new MasterToolView(model, null, runner);
             rootVisualElement.Clear();
             rootVisualElement.Add(view.Build());
         }
