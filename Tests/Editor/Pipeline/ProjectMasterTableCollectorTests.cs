@@ -185,6 +185,78 @@ namespace MasterDataTool.EditorTools.Tests
             Assert.IsFalse(collected.Warnings[0].Message.Contains(typeof(ClashB).FullName));
         }
 
+        [Test]
+        public void Collect_MultipleAssets_Saved_AssetPathIsFirstOrdinal()
+        {
+            folder = TempAssetFolder.CreateUniqueFolder();
+            var pathZ = TempAssetFolder.AssetPath(folder, "z.asset");
+            var pathM = TempAssetFolder.AssetPath(folder, "m.asset");
+            var pathA = TempAssetFolder.AssetPath(folder, "a.asset");
+            SaveItem(pathZ, 3, "z");
+            SaveItem(pathM, 2, "m");
+            SaveItem(pathA, 1, "a");
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
+            var collected = new ProjectMasterTableCollector(
+                new AssetDatabaseMasterAssetSource(new[] { folder })).Collect();
+
+            Assert.AreEqual(0, collected.Tables.Count);
+            Assert.AreEqual(1, collected.Warnings.Count);
+            var warning = collected.Warnings[0];
+            Assert.AreEqual(ValidationIssueKind.MultipleMasterAssets, warning.Kind);
+            Assert.AreEqual(pathA, warning.AssetPath);
+            StringAssert.Contains(pathA, warning.Message);
+            StringAssert.Contains(pathM, warning.Message);
+            StringAssert.Contains(pathZ, warning.Message);
+        }
+
+        [Test]
+        public void Collect_MultipleAssets_Unsaved_AssetPathIsNull()
+        {
+            var collected = Collect(OwnItem(1, "a"), OwnItem(2, "b"));
+
+            Assert.AreEqual(1, collected.Warnings.Count);
+            Assert.AreEqual(ValidationIssueKind.MultipleMasterAssets, collected.Warnings[0].Kind);
+            Assert.IsNull(collected.Warnings[0].AssetPath);
+            StringAssert.Contains("(未保存)", collected.Warnings[0].Message);
+        }
+
+        [Test]
+        public void Collect_AmbiguousName_Saved_AssetPathIsFirstFullName()
+        {
+            folder = TempAssetFolder.CreateUniqueFolder();
+            var pathA = TempAssetFolder.AssetPath(folder, "z-clash.asset");
+            var pathB = TempAssetFolder.AssetPath(folder, "a-clash.asset");
+            SaveClashA(pathA, 1);
+            SaveClashB(pathB, 2);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
+            var collected = new ProjectMasterTableCollector(
+                new AssetDatabaseMasterAssetSource(new[] { folder })).Collect();
+
+            Assert.AreEqual(0, collected.Tables.Count);
+            Assert.AreEqual(1, collected.Warnings.Count);
+            var warning = collected.Warnings[0];
+            Assert.AreEqual(ValidationIssueKind.AmbiguousMasterName, warning.Kind);
+            Assert.Less(string.CompareOrdinal(typeof(ClashA).FullName, typeof(ClashB).FullName), 0);
+            Assert.Greater(string.CompareOrdinal(pathA, pathB), 0);
+            Assert.AreEqual(pathA, warning.AssetPath);
+            StringAssert.Contains(typeof(ClashA).FullName, warning.Message);
+            StringAssert.Contains(typeof(ClashB).FullName, warning.Message);
+        }
+
+        [Test]
+        public void Collect_AmbiguousName_Unsaved_AssetPathIsNull()
+        {
+            var collected = Collect(OwnClashA(1), OwnClashB(2));
+
+            Assert.AreEqual(1, collected.Warnings.Count);
+            Assert.AreEqual(ValidationIssueKind.AmbiguousMasterName, collected.Warnings[0].Kind);
+            Assert.IsNull(collected.Warnings[0].AssetPath);
+        }
+
         ProjectTables Collect(params MasterDataBase[] assets)
         {
             var source = new FakeSource();
@@ -239,6 +311,20 @@ namespace MasterDataTool.EditorTools.Tests
         {
             var asset = ScriptableObject.CreateInstance<TestQuestMaster>();
             asset.ReplaceRecords(new[] { new TestQuestRecord(id, title) });
+            AssetDatabase.CreateAsset(asset, path);
+        }
+
+        static void SaveClashA(string path, int id)
+        {
+            var asset = ScriptableObject.CreateInstance<ClashA>();
+            asset.ReplaceRecords(new[] { new ClashRecord(id) });
+            AssetDatabase.CreateAsset(asset, path);
+        }
+
+        static void SaveClashB(string path, int id)
+        {
+            var asset = ScriptableObject.CreateInstance<ClashB>();
+            asset.ReplaceRecords(new[] { new NameClashB.ClashRecord(id) });
             AssetDatabase.CreateAsset(asset, path);
         }
 

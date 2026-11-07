@@ -609,6 +609,50 @@ namespace MasterDataTool.EditorTools.Tests
         }
 
         [Test]
+        public void Execute_NameClash_WarningAssetPath_IsRemovedTablePath()
+        {
+            Write("{ \"records\": [ { \"id\": 1 } ] }");
+            var other = new MasterTable(
+                "ClashMaster",
+                typeof(ClashB),
+                typeof(ClashRecordB),
+                MasterIdKind.Int,
+                new IMasterRecord[] { new ClashRecordB(9) },
+                "Assets/B/Clash.asset");
+
+            var result = pipeline.Execute(
+                Request(typeof(ClashA), typeof(ClashRecordA), PipelineMode.Validate, "Clash.asset"),
+                new ProjectTables(new[] { other }, new ValidationIssue[0]));
+
+            var warning = FindKind(result.Validation, ValidationIssueKind.AmbiguousMasterName);
+            Assert.IsNotNull(warning);
+            Assert.AreEqual("Assets/B/Clash.asset", warning.AssetPath);
+            StringAssert.Contains(typeof(ClashA).FullName, warning.Message);
+            StringAssert.Contains(typeof(ClashB).FullName, warning.Message);
+        }
+
+        [Test]
+        public void Execute_NameClash_NullRemovedAssetPath_WarningAssetPathIsNull()
+        {
+            Write("{ \"records\": [ { \"id\": 1 } ] }");
+            var other = new MasterTable(
+                "ClashMaster",
+                typeof(ClashB),
+                typeof(ClashRecordB),
+                MasterIdKind.Int,
+                new IMasterRecord[] { new ClashRecordB(9) },
+                null);
+
+            var result = pipeline.Execute(
+                Request(typeof(ClashA), typeof(ClashRecordA), PipelineMode.Validate, "Clash.asset"),
+                new ProjectTables(new[] { other }, new ValidationIssue[0]));
+
+            var warning = FindKind(result.Validation, ValidationIssueKind.AmbiguousMasterName);
+            Assert.IsNotNull(warning);
+            Assert.IsNull(warning.AssetPath);
+        }
+
+        [Test]
         public void Execute_ImportFailed_DoesNotAddNameClashWarning()
         {
             Write("{");

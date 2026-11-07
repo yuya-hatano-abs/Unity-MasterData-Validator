@@ -126,7 +126,6 @@ namespace MasterDataTool.EditorTools.Pipeline
                 var context = new ValidationContext(tables, new[] { table });
                 var runnerResult = new ValidationRunner(DefaultValidators.Create()).Run(context);
                 var validation = Combine(converted, projectTables.Warnings, extraWarnings, runnerResult);
-                var canSave = import.Succeeded && validation.IsValid;
                 if (!validation.IsValid)
                 {
                     return new PipelineResult(
@@ -282,7 +281,48 @@ namespace MasterDataTool.EditorTools.Pipeline
                 ValidationIssueKind.AmbiguousMasterName,
                 ProjectMasterTableCollector.ValidatorId,
                 message,
-                current.Name);
+                current.Name,
+                FirstRemovedAssetPath(removed));
+        }
+
+        static string FirstRemovedAssetPath(List<MasterTable> removed)
+        {
+            MasterTable first = null;
+            for (var i = 0; i < removed.Count; i++)
+            {
+                var table = removed[i];
+                if (table == null || string.IsNullOrEmpty(table.AssetPath))
+                {
+                    continue;
+                }
+
+                if (first == null || CompareRemovedByTypeName(table, first) < 0)
+                {
+                    first = table;
+                }
+            }
+
+            return first == null ? null : first.AssetPath;
+        }
+
+        static int CompareRemovedByTypeName(MasterTable left, MasterTable right)
+        {
+            if (left.MasterType == null && right.MasterType == null)
+            {
+                return 0;
+            }
+
+            if (left.MasterType == null)
+            {
+                return 1;
+            }
+
+            if (right.MasterType == null)
+            {
+                return -1;
+            }
+
+            return string.CompareOrdinal(left.MasterType.FullName, right.MasterType.FullName);
         }
 
         static ValidationResult Combine(

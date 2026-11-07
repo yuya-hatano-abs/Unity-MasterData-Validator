@@ -117,18 +117,22 @@ namespace MasterDataTool.EditorTools.Tests
         {
             var harness = new Harness();
             var root = harness.PrepareValid();
-            var expected = PipelineResultFormatter.Format(harness.Runner.Next);
+            var expected = PipelineResultFormatter.FormatHeader(harness.Runner.Next);
 
             harness.View.OnValidateClicked();
 
-            var labels = Labels(root);
-            Assert.AreEqual(1 + expected.Count, labels.Count);
-            Assert.IsTrue(labels.Any(label => label.text == "検証結果"));
-            Assert.IsFalse(labels.Any(label => label.text == Placeholder));
+            var header = root.Q(MasterToolView.ResultsHeaderName);
+            var labels = header.Query<Label>().ToList();
+            Assert.AreEqual(expected.Count, labels.Count);
             for (var i = 0; i < expected.Count; i++)
             {
-                Assert.IsTrue(labels.Any(label => label.text == expected[i].Text));
+                Assert.AreEqual(expected[i].Text, labels[i].text);
             }
+
+            Assert.IsTrue(Labels(root).Any(label => label.text == "検証結果"));
+            Assert.IsFalse(ShowsPlaceholder(root));
+            var list = root.Q<ListView>("results-list");
+            Assert.AreEqual(harness.Runner.Next.Validation.Issues.Count, list.itemsSource.Count);
         }
 
         [Test]
@@ -309,7 +313,22 @@ namespace MasterDataTool.EditorTools.Tests
 
         static bool ShowsIssue(VisualElement root)
         {
-            return Labels(root).Any(label => label.text == "[エラー] one");
+            var list = root.Q<ListView>("results-list");
+            if (list == null || list.itemsSource == null)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < list.itemsSource.Count; i++)
+            {
+                var issue = list.itemsSource[i] as ValidationIssue;
+                if (issue != null && issue.Message == "one")
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         sealed class Harness

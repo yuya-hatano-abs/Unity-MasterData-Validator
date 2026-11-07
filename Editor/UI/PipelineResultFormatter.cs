@@ -18,10 +18,40 @@ namespace MasterDataTool.EditorTools.UI
         public static IReadOnlyList<ResultLine> Format(PipelineResult result, int maxIssueLines = 200)
         {
             var lines = new List<ResultLine>();
+            AppendHeader(lines, result);
+            if (result == null)
+            {
+                return lines;
+            }
+
+            if (result.Status != PipelineStatus.InvalidRequest &&
+                result.Status != PipelineStatus.UnexpectedError)
+            {
+                var validation = result.Validation ?? ValidationResult.Empty;
+                AppendIssueLines(lines, validation, maxIssueLines);
+            }
+
+            return lines;
+        }
+
+        /// <summary>
+        /// サマリーと保存結果だけを行にします。問題の行は含めません。
+        /// </summary>
+        /// <param name="result">パイプラインの結果です。</param>
+        /// <returns>サマリーと、保存した場合はその行です。</returns>
+        public static IReadOnlyList<ResultLine> FormatHeader(PipelineResult result)
+        {
+            var lines = new List<ResultLine>();
+            AppendHeader(lines, result);
+            return lines;
+        }
+
+        static void AppendHeader(List<ResultLine> lines, PipelineResult result)
+        {
             if (result == null)
             {
                 lines.Add(new ResultLine(ResultLineSeverity.Error, "実行できませんでした: 結果がありません。"));
-                return lines;
+                return;
             }
 
             var validation = result.Validation ?? ValidationResult.Empty;
@@ -63,14 +93,6 @@ namespace MasterDataTool.EditorTools.UI
                     AppendSaveLines(lines, result);
                     break;
             }
-
-            if (result.Status != PipelineStatus.InvalidRequest &&
-                result.Status != PipelineStatus.UnexpectedError)
-            {
-                AppendIssueLines(lines, validation, maxIssueLines);
-            }
-
-            return lines;
         }
 
         static void AppendSaveLines(List<ResultLine> lines, PipelineResult result)

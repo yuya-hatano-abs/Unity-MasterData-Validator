@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using MasterDataTool.EditorTools.Pipeline;
+using MasterDataTool.EditorTools.Validation;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -45,6 +46,12 @@ namespace MasterDataTool.EditorTools.UI
         /// <summary>検証結果領域の名前です。</summary>
         internal const string ResultsContainerName = "results-container";
 
+        /// <summary>検証結果の見出し行を入れる要素の名前です。</summary>
+        internal const string ResultsHeaderName = "results-header";
+
+        /// <summary>検証問題の一覧パネルの名前です。</summary>
+        internal const string ResultsListPanelName = "results-list-panel";
+
         const string ResultHeading = "検証結果";
         const string ResultPlaceholder = "検証結果は、ここに表示されます。";
         const string TooltipNeedInput = "入力の問題を解消してください。";
@@ -55,6 +62,7 @@ namespace MasterDataTool.EditorTools.UI
         readonly MasterToolModel model;
         readonly IFileDialogs fileDialogs;
         readonly IImportRunner importRunner;
+        readonly ValidationResultsView resultsView;
 
         DropdownField masterTypeField;
         HelpBox emptyTypeHelp;
@@ -73,7 +81,12 @@ namespace MasterDataTool.EditorTools.UI
         /// <param name="model">入力モデルです。</param>
         /// <param name="fileDialogs">ファイル選択です。null の場合はエディタのダイアログです。</param>
         /// <param name="importRunner">インポートの実行です。null の場合はプロジェクトを走査する実装です。</param>
-        public MasterToolView(MasterToolModel model, IFileDialogs fileDialogs = null, IImportRunner importRunner = null)
+        /// <param name="assetSelector">結果の行からアセットを選ぶ実装です。null の場合はエディタの選択です。</param>
+        public MasterToolView(
+            MasterToolModel model,
+            IFileDialogs fileDialogs = null,
+            IImportRunner importRunner = null,
+            IAssetSelector assetSelector = null)
         {
             if (model == null)
             {
@@ -83,7 +96,11 @@ namespace MasterDataTool.EditorTools.UI
             this.model = model;
             this.fileDialogs = fileDialogs ?? new EditorFileDialogs();
             this.importRunner = importRunner ?? new ProjectImportRunner();
+            resultsView = new ValidationResultsView(null, assetSelector);
         }
+
+        /// <summary>検証結果の一覧です。行の選択をテストから再現します。</summary>
+        internal ValidationResultsView ResultsView => resultsView;
 
         /// <summary>
         /// 要素ツリーを作り、現在の状態を反映します。
@@ -149,7 +166,7 @@ namespace MasterDataTool.EditorTools.UI
             resultsContainer = new VisualElement { name = ResultsContainerName };
             resultsContainer.style.marginTop = 12;
             root.Add(resultsContainer);
-            ShowResultLines(null);
+            ShowPlaceholder();
 
             Refresh();
             return root;
@@ -361,7 +378,8 @@ namespace MasterDataTool.EditorTools.UI
 
             isRunning = true;
             Refresh();
-            IReadOnlyList<ResultLine> lines;
+            PipelineResult result = null;
+            IReadOnlyList<ResultLine> exceptionLines = null;
             try
             {
                 var request = new PipelineRequest(
@@ -370,12 +388,11 @@ namespace MasterDataTool.EditorTools.UI
                     model.State.JsonPath ?? string.Empty,
                     model.State.AssetPath ?? string.Empty,
                     mode);
-                var result = importRunner.Run(request);
-                lines = PipelineResultFormatter.Format(result);
+                result = importRunner.Run(request);
             }
             catch (Exception ex)
             {
-                lines = new[]
+                exceptionLines = new[]
                 {
                     new ResultLine(
                         ResultLineSeverity.Error,
@@ -388,7 +405,21 @@ namespace MasterDataTool.EditorTools.UI
                 Refresh();
             }
 
-            ShowResultLines(lines);
+            if (exceptionLines != null)
+            {
+                ShowExecutedResult(exceptionLines, null, false);
+                return;
+            }
+
+            var showList = result.Status != PipelineStatus.InvalidRequest &&
+                           result.Status != PipelineStatus.UnexpectedError;
+            IReadOnlyList<ValidationIssue> issues = null;
+            if (showList && result.Validation != null)
+            {
+                issues = result.Validation.Issues;
+            }
+
+            ShowExecutedResult(PipelineResultFormatter.FormatHeader(result), issues, showList);
         }
 
         void ApplyExecutionButtons()
@@ -415,14 +446,11 @@ namespace MasterDataTool.EditorTools.UI
 
         void DiscardResults()
         {
-            ShowResultLines(null);
+            resultsView.Clear();
+            ShowPlaceholder();
         }
 
-        /// <summary>
-        /// 検証結果の行を描きます。使い捨ての簡易版です。Task 12 で一覧表示に置き換えます。
-        /// </summary>
-        /// <param name="lines">表示する行です。null は未実行の案内です。</param>
-        void ShowResultLines(IReadOnlyList<ResultLine> lines)
+        void ShowPlaceholder()
         {
             if (resultsContainer == null)
             {
@@ -431,16 +459,39 @@ namespace MasterDataTool.EditorTools.UI
 
             resultsContainer.Clear();
             resultsContainer.Add(new Label(ResultHeading));
-            if (lines == null)
+            resultsContainer.Add(new Label(ResultPlaceholder));
+        }
+
+        void ShowExecutedResult(
+            IReadOnlyList<ResultLine> lines,
+            IReadOnlyList<ValidationIssue> issues,
+            bool showList)
+        {
+            if (resultsContainer == null)
             {
-                resultsContainer.Add(new Label(ResultPlaceholder));
                 return;
             }
 
-            for (var i = 0; i < lines.Count; i++)
+            resultsContainer.Clear();
+            resultsContainer.Add(new Label(ResultHeading));
+            var header = new VisualElement { name = ResultsHeaderName };
+            if (lines != null)
             {
-                resultsContainer.Add(new Label(lines[i].Text));
+                for (var i = 0; i < lines.Count; i++)
+                {
+                    header.Add(new Label(lines[i].Text));
+                }
             }
+
+            resultsContainer.Add(header);
+            if (!showList)
+            {
+                resultsView.Clear();
+                return;
+            }
+
+            resultsContainer.Add(resultsView.Build());
+            resultsView.SetIssues(issues);
         }
 
         string ResolveInitialJsonDirectory()

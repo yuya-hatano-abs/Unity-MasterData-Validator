@@ -116,7 +116,8 @@ namespace MasterDataTool.EditorTools.Pipeline
                 ValidationIssueKind.MultipleMasterAssets,
                 ValidatorId,
                 message,
-                type.Name);
+                type.Name,
+                FirstSavedAssetPath(assets));
         }
 
         static ValidationIssue CreateAmbiguousNameWarning(string name, List<MasterTable> tables)
@@ -136,7 +137,75 @@ namespace MasterDataTool.EditorTools.Pipeline
                 ValidationIssueKind.AmbiguousMasterName,
                 ValidatorId,
                 message,
-                name);
+                name,
+                FirstTableAssetPath(tables));
+        }
+
+        /// <summary>
+        /// 保存済みパスのうち、序数順で最初のものです。メッセージは未保存も含めて並べます。
+        /// </summary>
+        static string FirstSavedAssetPath(List<MasterDataBase> assets)
+        {
+            var paths = new List<string>();
+            for (var i = 0; i < assets.Count; i++)
+            {
+                var path = AssetDatabase.GetAssetPath(assets[i]);
+                if (!string.IsNullOrEmpty(path))
+                {
+                    paths.Add(path);
+                }
+            }
+
+            if (paths.Count == 0)
+            {
+                return null;
+            }
+
+            paths.Sort(StringComparer.Ordinal);
+            return paths[0];
+        }
+
+        /// <summary>
+        /// 空でない AssetPath のうち、マスタ型の完全名の序数順で最初のものです。型が null のテーブルは後です。
+        /// </summary>
+        static string FirstTableAssetPath(List<MasterTable> tables)
+        {
+            MasterTable first = null;
+            for (var i = 0; i < tables.Count; i++)
+            {
+                var table = tables[i];
+                if (table == null || string.IsNullOrEmpty(table.AssetPath))
+                {
+                    continue;
+                }
+
+                if (first == null || CompareByTypeName(table, first) < 0)
+                {
+                    first = table;
+                }
+            }
+
+            return first == null ? null : first.AssetPath;
+        }
+
+        static int CompareByTypeName(MasterTable left, MasterTable right)
+        {
+            if (left.MasterType == null && right.MasterType == null)
+            {
+                return 0;
+            }
+
+            if (left.MasterType == null)
+            {
+                return 1;
+            }
+
+            if (right.MasterType == null)
+            {
+                return -1;
+            }
+
+            return string.CompareOrdinal(left.MasterType.FullName, right.MasterType.FullName);
         }
 
         static string DescribePath(MasterDataBase asset)
