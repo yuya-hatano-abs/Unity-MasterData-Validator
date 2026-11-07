@@ -43,5 +43,11 @@ namespace MasterDataTool.EditorTools.Validation
 
         /// <summary>[MasterRequired] の指定が不正です(設定のミス)。</summary>
         InvalidRequiredDefinition,
+
+        /// <summary>同じマスタ型のアセットが複数あるため、参照先として使えません。</summary>
+        MultipleMasterAssets,
+
+        /// <summary>同じ名前のマスタ型が複数あるため、参照先として使えません。</summary>
+        AmbiguousMasterName,
     }
 }

@@ -59,8 +59,8 @@ namespace MasterDataTool.EditorTools.Tests
 
             Assert.IsFalse(validate.enabledSelf);
             Assert.IsFalse(save.enabledSelf);
-            Assert.AreEqual("インポート機能は、準備中です。", validate.tooltip);
-            Assert.AreEqual("インポート機能は、準備中です。", save.tooltip);
+            Assert.AreEqual("入力の問題を解消してください。", validate.tooltip);
+            Assert.AreEqual("入力の問題を解消してください。", save.tooltip);
             Assert.AreEqual("検証", validate.text);
             Assert.AreEqual("検証して保存", save.text);
         }
@@ -170,8 +170,6 @@ namespace MasterDataTool.EditorTools.Tests
 
             var boxes = root.Q(MasterToolView.InputProblemsName).Query<HelpBox>().ToList();
             Assert.AreEqual(0, boxes.Count);
-            Assert.IsFalse(root.Q<Button>(MasterToolView.ValidateButtonName).enabledSelf);
-            Assert.IsFalse(root.Q<Button>(MasterToolView.SaveButtonName).enabledSelf);
         }
 
         [Test]

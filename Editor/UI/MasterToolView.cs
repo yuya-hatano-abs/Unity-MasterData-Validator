@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
+using MasterDataTool.EditorTools.Pipeline;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -43,10 +45,16 @@ namespace MasterDataTool.EditorTools.UI
         /// <summary>検証結果領域の名前です。</summary>
         internal const string ResultsContainerName = "results-container";
 
-        const string PendingTooltip = "インポート機能は、準備中です。";
+        const string ResultHeading = "検証結果";
+        const string ResultPlaceholder = "検証結果は、ここに表示されます。";
+        const string TooltipNeedInput = "入力の問題を解消してください。";
+        const string TooltipRunning = "実行中です。";
+        const string TooltipValidate = "JSON を検証します(保存しません)。";
+        const string TooltipSave = "検証し、エラーがなければ保存します。";
 
         readonly MasterToolModel model;
         readonly IFileDialogs fileDialogs;
+        readonly IImportRunner importRunner;
 
         DropdownField masterTypeField;
         HelpBox emptyTypeHelp;
@@ -55,22 +63,26 @@ namespace MasterDataTool.EditorTools.UI
         VisualElement inputProblems;
         Button validateButton;
         Button saveButton;
+        VisualElement resultsContainer;
         bool refreshing;
+        bool isRunning;
 
         /// <summary>
         /// ビューを初期化します。
         /// </summary>
         /// <param name="model">入力モデルです。</param>
         /// <param name="fileDialogs">ファイル選択です。null の場合はエディタのダイアログです。</param>
-        public MasterToolView(MasterToolModel model, IFileDialogs fileDialogs = null)
+        /// <param name="importRunner">インポートの実行です。null の場合はプロジェクトを走査する実装です。</param>
+        public MasterToolView(MasterToolModel model, IFileDialogs fileDialogs = null, IImportRunner importRunner = null)
         {
             if (model == null)
             {
-                throw new System.ArgumentNullException(nameof(model));
+                throw new ArgumentNullException(nameof(model));
             }
 
             this.model = model;
             this.fileDialogs = fileDialogs ?? new EditorFileDialogs();
+            this.importRunner = importRunner ?? new ProjectImportRunner();
         }
 
         /// <summary>
@@ -128,24 +140,23 @@ namespace MasterDataTool.EditorTools.UI
             root.Add(inputProblems);
 
             var buttonRow = CreateRow();
-            validateButton = new Button { name = ValidateButtonName, text = "検証" };
-            saveButton = new Button { name = SaveButtonName, text = "検証して保存" };
+            validateButton = new Button(OnValidateClicked) { name = ValidateButtonName, text = "検証" };
+            saveButton = new Button(OnSaveClicked) { name = SaveButtonName, text = "検証して保存" };
             buttonRow.Add(validateButton);
             buttonRow.Add(saveButton);
             root.Add(buttonRow);
 
-            var results = new VisualElement { name = ResultsContainerName };
-            results.style.marginTop = 12;
-            results.Add(new Label("検証結果"));
-            results.Add(new Label("検証結果は、ここに表示されます。"));
-            root.Add(results);
+            resultsContainer = new VisualElement { name = ResultsContainerName };
+            resultsContainer.style.marginTop = 12;
+            root.Add(resultsContainer);
+            ShowResultLines(null);
 
             Refresh();
             return root;
         }
 
         /// <summary>
-        /// モデルの状態を画面へ反映します。入力欄の変更通知は出しません。
+        /// モデルの状態を画面へ反映します。入力欄の変更通知は出しません。結果の行は変えません。
         /// </summary>
         public void Refresh()
         {
@@ -185,10 +196,7 @@ namespace MasterDataTool.EditorTools.UI
                     inputProblems.Add(new HelpBox(problems[i].Message, messageType));
                 }
 
-                validateButton.SetEnabled(false);
-                saveButton.SetEnabled(false);
-                validateButton.tooltip = PendingTooltip;
-                saveButton.tooltip = PendingTooltip;
+                ApplyExecutionButtons();
             }
             finally
             {
@@ -207,6 +215,7 @@ namespace MasterDataTool.EditorTools.UI
                 return;
             }
 
+            DiscardResults();
             if (model.Catalog.TryFind(displayName, out var info))
             {
                 model.SelectType(info);
@@ -220,7 +229,7 @@ namespace MasterDataTool.EditorTools.UI
         }
 
         /// <summary>
-        /// 再読み込みボタンが押されたときに呼ばれます。
+        /// 再読み込みボタンが押されたときに呼ばれます。結果の表示は残します。
         /// </summary>
         internal void OnRefreshClicked()
         {
@@ -244,6 +253,7 @@ namespace MasterDataTool.EditorTools.UI
                 return;
             }
 
+            DiscardResults();
             model.SetJsonPath(value);
             Refresh();
         }
@@ -259,6 +269,7 @@ namespace MasterDataTool.EditorTools.UI
                 return;
             }
 
+            DiscardResults();
             model.SetAssetPath(value);
             Refresh();
         }
@@ -279,6 +290,7 @@ namespace MasterDataTool.EditorTools.UI
                 return;
             }
 
+            DiscardResults();
             model.SetJsonPath(selected);
             var directory = Path.GetDirectoryName(selected);
             model.State.LastJsonDirectory = directory ?? string.Empty;
@@ -303,8 +315,132 @@ namespace MasterDataTool.EditorTools.UI
                 return;
             }
 
+            DiscardResults();
             model.SetAssetPath(picked);
             Refresh();
+        }
+
+        /// <summary>
+        /// 検証ボタンが押されたときに呼ばれます。保存はしません。
+        /// </summary>
+        internal void OnValidateClicked()
+        {
+            if (isRunning)
+            {
+                return;
+            }
+
+            RunPipeline(PipelineMode.Validate);
+        }
+
+        /// <summary>
+        /// 検証して保存ボタンが押されたときに呼ばれます。
+        /// </summary>
+        internal void OnSaveClicked()
+        {
+            if (isRunning)
+            {
+                return;
+            }
+
+            RunPipeline(PipelineMode.ValidateAndSave);
+        }
+
+        void RunPipeline(PipelineMode mode)
+        {
+            if (isRunning || !model.CanProceed)
+            {
+                return;
+            }
+
+            var selected = model.SelectedType;
+            if (selected == null)
+            {
+                return;
+            }
+
+            isRunning = true;
+            Refresh();
+            IReadOnlyList<ResultLine> lines;
+            try
+            {
+                var request = new PipelineRequest(
+                    selected.MasterType,
+                    selected.RecordType,
+                    model.State.JsonPath ?? string.Empty,
+                    model.State.AssetPath ?? string.Empty,
+                    mode);
+                var result = importRunner.Run(request);
+                lines = PipelineResultFormatter.Format(result);
+            }
+            catch (Exception ex)
+            {
+                lines = new[]
+                {
+                    new ResultLine(
+                        ResultLineSeverity.Error,
+                        "実行できませんでした: " + ex.GetType().Name + ": " + ex.Message),
+                };
+            }
+            finally
+            {
+                isRunning = false;
+                Refresh();
+            }
+
+            ShowResultLines(lines);
+        }
+
+        void ApplyExecutionButtons()
+        {
+            var enabled = model.CanProceed && !isRunning;
+            validateButton.SetEnabled(enabled);
+            saveButton.SetEnabled(enabled);
+            if (isRunning)
+            {
+                validateButton.tooltip = TooltipRunning;
+                saveButton.tooltip = TooltipRunning;
+            }
+            else if (!model.CanProceed)
+            {
+                validateButton.tooltip = TooltipNeedInput;
+                saveButton.tooltip = TooltipNeedInput;
+            }
+            else
+            {
+                validateButton.tooltip = TooltipValidate;
+                saveButton.tooltip = TooltipSave;
+            }
+        }
+
+        void DiscardResults()
+        {
+            ShowResultLines(null);
+        }
+
+        /// <summary>
+        /// 検証結果の行を描きます。使い捨ての簡易版です。Task 12 で一覧表示に置き換えます。
+        /// </summary>
+        /// <param name="lines">表示する行です。null は未実行の案内です。</param>
+        void ShowResultLines(IReadOnlyList<ResultLine> lines)
+        {
+            if (resultsContainer == null)
+            {
+                return;
+            }
+
+            resultsContainer.Clear();
+            resultsContainer.Add(new Label(ResultHeading));
+            if (lines == null)
+            {
+                resultsContainer.Add(new Label(ResultPlaceholder));
+                return;
+            }
+
+            for (var i = 0; i < lines.Count; i++)
+            {
+                resultsContainer.Add(new Label(lines[i].Text));
+            }
         }
 
         string ResolveInitialJsonDirectory()
@@ -342,7 +478,7 @@ namespace MasterDataTool.EditorTools.UI
             }
 
             folder = folder.Replace('\\', '/');
-            if (folder.StartsWith("Assets", System.StringComparison.Ordinal))
+            if (folder.StartsWith("Assets", StringComparison.Ordinal))
             {
                 return folder;
             }
