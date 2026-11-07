@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using MasterDataTool.EditorTools.Pipeline;
+using MasterDataTool.EditorTools.Settings;
 using MasterDataTool.EditorTools.Validation;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -43,6 +44,9 @@ namespace MasterDataTool.EditorTools.UI
         /// <summary>検証して保存ボタンの名前です。</summary>
         internal const string SaveButtonName = "save-button";
 
+        /// <summary>Console ログのチェックボックスの名前です。</summary>
+        internal const string LogToggleName = "log-toggle";
+
         /// <summary>検証結果領域の名前です。</summary>
         internal const string ResultsContainerName = "results-container";
 
@@ -71,6 +75,7 @@ namespace MasterDataTool.EditorTools.UI
         readonly MasterToolModel model;
         readonly IFileDialogs fileDialogs;
         readonly IImportRunner importRunner;
+        readonly MasterToolSettings settings;
         readonly ValidationResultsView resultsView;
 
         DropdownField masterTypeField;
@@ -91,11 +96,13 @@ namespace MasterDataTool.EditorTools.UI
         /// <param name="fileDialogs">ファイル選択です。null の場合はエディタのダイアログです。</param>
         /// <param name="importRunner">インポートの実行です。null の場合はプロジェクトを走査する実装です。</param>
         /// <param name="assetSelector">結果の行からアセットを選ぶ実装です。null の場合はエディタの選択です。</param>
+        /// <param name="settings">入力とログ設定の保存先です。null の場合はチェックも保存もありません。</param>
         public MasterToolView(
             MasterToolModel model,
             IFileDialogs fileDialogs = null,
             IImportRunner importRunner = null,
-            IAssetSelector assetSelector = null)
+            IAssetSelector assetSelector = null,
+            MasterToolSettings settings = null)
         {
             if (model == null)
             {
@@ -105,6 +112,7 @@ namespace MasterDataTool.EditorTools.UI
             this.model = model;
             this.fileDialogs = fileDialogs ?? new EditorFileDialogs();
             this.importRunner = importRunner ?? new ProjectImportRunner();
+            this.settings = settings;
             resultsView = new ValidationResultsView(null, assetSelector);
         }
 
@@ -164,6 +172,15 @@ namespace MasterDataTool.EditorTools.UI
             inputProblems = new VisualElement { name = InputProblemsName };
             inputProblems.style.marginTop = 8;
             root.Add(inputProblems);
+
+            if (settings != null)
+            {
+                var logToggle = new Toggle { name = LogToggleName, text = "Console にログを出す" };
+                logToggle.style.marginBottom = 6;
+                logToggle.SetValueWithoutNotify(settings.LogToConsole);
+                logToggle.RegisterValueChangedCallback(evt => OnLogToggleChanged(evt.newValue));
+                root.Add(logToggle);
+            }
 
             var buttonRow = CreateRow();
             validateButton = new Button(OnValidateClicked) { name = ValidateButtonName, text = "検証" };
@@ -251,6 +268,7 @@ namespace MasterDataTool.EditorTools.UI
                 model.SelectType(null);
             }
 
+            SaveSettings();
             Refresh();
         }
 
@@ -281,6 +299,7 @@ namespace MasterDataTool.EditorTools.UI
 
             DiscardResults();
             model.SetJsonPath(value);
+            SaveSettings();
             Refresh();
         }
 
@@ -297,6 +316,7 @@ namespace MasterDataTool.EditorTools.UI
 
             DiscardResults();
             model.SetAssetPath(value);
+            SaveSettings();
             Refresh();
         }
 
@@ -320,6 +340,7 @@ namespace MasterDataTool.EditorTools.UI
             model.SetJsonPath(selected);
             var directory = Path.GetDirectoryName(selected);
             model.State.LastJsonDirectory = directory ?? string.Empty;
+            SaveSettings();
             Refresh();
         }
 
@@ -343,6 +364,7 @@ namespace MasterDataTool.EditorTools.UI
 
             DiscardResults();
             model.SetAssetPath(picked);
+            SaveSettings();
             Refresh();
         }
 
@@ -526,6 +548,26 @@ namespace MasterDataTool.EditorTools.UI
 
             foldout.Add(scroll);
             resultsContainer.Add(foldout);
+        }
+
+        void OnLogToggleChanged(bool value)
+        {
+            if (refreshing || settings == null)
+            {
+                return;
+            }
+
+            settings.LogToConsole = value;
+        }
+
+        void SaveSettings()
+        {
+            if (settings == null)
+            {
+                return;
+            }
+
+            settings.Save(model.State);
         }
 
         string ResolveInitialJsonDirectory()

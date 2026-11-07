@@ -1,5 +1,6 @@
 using MasterDataTool.EditorTools.Logging;
 using MasterDataTool.EditorTools.Pipeline;
+using MasterDataTool.EditorTools.Settings;
 using UnityEditor;
 using UnityEngine;
 
@@ -35,10 +36,13 @@ namespace MasterDataTool.EditorTools.UI
             }
 
             var catalog = new MasterTypeCatalog();
+            var settings = MasterToolSettings.CreateDefault();
+            settings.RestoreIfNeeded(state, name => catalog.TryFind(name, out _));
             var model = new MasterToolModel(state, catalog);
             var runner = new ProjectImportRunner(
-                pipeline: new MasterImportPipeline(logger: new ConsoleMasterLogger()));
-            var view = new MasterToolView(model, null, runner);
+                pipeline: new MasterImportPipeline(
+                    logger: new ToggleMasterLogger(new ConsoleMasterLogger(), () => settings.LogToConsole)));
+            var view = new MasterToolView(model, null, runner, null, settings);
             rootVisualElement.Clear();
             rootVisualElement.Add(view.Build());
         }
