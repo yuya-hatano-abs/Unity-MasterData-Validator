@@ -30,7 +30,7 @@ JSON のマスタデータを ScriptableObject に取り込み、ID の重複や
 Package Manager の「Add package from git URL」に、次を入力します。
 
 ```
-https://github.com/yuya-hatano-abs/Unity-MasterData-Validator.git
+https://github.com/yuya-hatano-abs/Unity-MasterData-Validator.git#v0.1.0
 ```
 
 ローカルのフォルダを参照する場合は、プロジェクトの `Packages/manifest.json` に次のように書きます。パスは、そのプロジェクトからパッケージのフォルダまでの相対パスです。
