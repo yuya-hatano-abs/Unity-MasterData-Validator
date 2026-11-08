@@ -1,0 +1,7 @@
+{
+  "records": [
+    { "id": "Q001", "title": "はじめての依頼", "rewardItemId": 1 },
+    { "id": "Q002", "title": "失われた宝", "rewardItemId": 999 },
+    { "id": "Q003", "title": "報酬なしの調査", "rewardItemId": 0 }
+  ]
+}

@@ -19,5 +19,13 @@
   "hideInEditor": false,
   "dependencies": {
     "com.unity.nuget.newtonsoft-json": "3.2.1"
-  }
+  },
+  "license": "MIT",
+  "samples": [
+    {
+      "displayName": "Master Data Sample",
+      "description": "ItemMaster と QuestMaster、および確認用の JSON です。",
+      "path": "Samples~/MasterData"
+    }
+  ]
 }

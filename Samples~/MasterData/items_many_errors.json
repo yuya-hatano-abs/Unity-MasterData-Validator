@@ -1,0 +1,31 @@
+{
+  "records": [
+    { "id": 1, "name": "重複の剣", "price": 100 },
+    { "id": 1, "name": "重複の剣", "price": 100 },
+    { "id": 1, "name": "重複の剣", "price": 100 },
+    { "id": 2, "name": "重複の盾", "price": 200 },
+    { "id": 2, "name": "重複の盾", "price": 200 },
+    { "id": 3, "name": "重複の弓", "price": 300 },
+    { "id": 3, "name": "重複の弓", "price": 300 },
+    { "id": 3, "name": "重複の弓", "price": 300 },
+    { "id": 10, "price": 100 },
+    { "id": 11, "price": 110 },
+    { "id": 12, "price": 120 },
+    { "id": 13, "price": 130 },
+    { "id": 14, "price": 140 },
+    { "id": 15, "price": 150 },
+    { "id": 20, "name": "", "price": 1 },
+    { "id": 21, "name": "", "price": 1 },
+    { "id": 22, "name": "", "price": 1 },
+    { "id": 23, "name": "", "price": 1 },
+    { "id": 24, "name": " ", "price": 1 },
+    { "id": 25, "name": "  ", "price": 1 },
+    { "id": 26, "name": "   ", "price": 1 },
+    { "id": 30, "name": "メモ付きの薬", "price": 10, "note": "余分" },
+    { "id": 31, "name": "メモ付きの布", "price": 20, "note": "余分" },
+    { "id": 32, "name": "メモ付きの石", "price": 30, "note": "余分" },
+    { "id": 33, "name": "メモ付きの本", "price": 40, "note": "余分" },
+    { "id": 34, "name": "メモ付きの鍵", "price": 50, "note": "余分" },
+    { "id": 35, "name": "メモ付きの札", "price": 60, "note": "余分" }
+  ]
+}
